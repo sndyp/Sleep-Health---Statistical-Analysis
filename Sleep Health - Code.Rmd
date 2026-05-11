@@ -1,0 +1,363 @@
+---
+title: "FinalReport"
+author: "Sandy and Farras"
+date: "2024-06-20"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# **Introduction**
+
+#### **Goal : **
+Implement and evaluate interventions aimed at improving sleep health in high-stress occupations and among individual's gender with identified sleep disorders. <br>
+
+##### **Concise Overview of the Report's Purpose, Context, and Structure : **
+This report aims to analyze the "Sleep Health and Lifestyle" dataset to understand various factors related to sleep and daily habits. The dataset includes 374 observations across 13 variables, such as gender, age, occupation, sleep duration, sleep quality, physical activity level, stress levels, BMI category, blood pressure, heart rate, daily steps, and sleep disorders. The report is structured to provide a comprehensive analysis starting with an introduction, followed by data exploration, statistical analysis, and conclusions. <br>
+
+##### **Introduction to the Topic or Problem Addressed : **
+This report's main focus is on sleep health and how it relates to different lifestyle factors. Given the increasing awareness of the importance of sleep, this report seeks to identify patterns and correlations within the dataset to provide insights into how different variables impact sleep quality and duration. <br>
+
+##### **Context for Readers to Understand the Significane : **
+Sleep health is a critical aspect of overall well-being, affecting physical health, mental health, and daily productivity. By analyzing this dataset, the report aims to contribute to the understanding of how lifestyle choices and demographic factors influence sleep patterns. This background is important because it can provide information to individuals, legislators, and healthcare professionals about possible areas for action and better sleep hygiene. <br>
+
+##### **Importance or Relevance of the Analysis and Potential Implications or Applications : **
+The analysis is important because it can reveal crucial insights into the factors that affect sleep quality and duration. Understanding these relationships can help in developing targeted strategies to improve sleep health, which is essential for preventing various health issues such as cardiovascular diseases, obesity, and mental health disorders. The findings could be applied in clinical settings, public health initiatives, and personal lifestyle adjustments. <br>
+
+##### **Intended Audience : **
+The intended audience for this report includes researchers in sleep science and public health, healthcare providers, policymakers interested in public health and wellness, and individuals seeking to improve their sleep patterns. <br>
+
+##### **Objectives or Goals of the Analysis : **
+The primary objectives of this analysis are: <br>
+- To explore the general characteristics of the dataset. <br>
+- To identify key factors influencing sleep quality and duration. <br>
+- To analyze correlations between sleep health and lifestyle factors. <br>
+- To provide actionable insights and recommendations based on the findings. <br>
+
+##### **Methods or Analytical Techniques Employed : **
+The report employs several methods for analysis: <br>
+Exploratory Data Analysis (EDA): To understand the structure and distribution of the dataset, including the use of summary statistics and visualization techniques. <br>
+Statistical Analysis: To identify significant correlations and potential causal relationships between variables. Techniques such as regression analysis and hypothesis testing are utilized. <br>
+
+##### **Assumptions Made or Limitations of the Analysis : **
+The analysis assumes that the data collected is accurate and representative of the general population. However, there are limitations, such as: <br>
+- The dataset may not capture all relevant variables influencing sleep health. <br>
+- Self-reported data can be subject to biases. <br>
+- The cross-sectional nature of the dataset limits the ability to infer causality. <br>
+
+##### **Personal Significance of the Analysis : **
+This analysis is worth reading since it discusses a common concern in health care—sleep. The report provides actionable methods to improve sleep health, which can benefit a wide range of persons and stakeholders. This is because sleep has a widespread impact on overall health and well-being. <br>
+
+
+# **Data Description**
+##### **Source** <br>
+Kaggle : https://www.kaggle.com/datasets/uom190346a/sleep-health-and-lifestyle-dataset <br>
+
+##### **Variables** <br>
+Gender: Categorical variable indicating the gender of the participant (e.g., male, female). <br>
+Age: Numerical variable representing the age of the participant. <br>
+Occupation: Categorical variable specifying the participant's occupation. <br>
+Sleep Duration: Numerical variable indicating the average number of hours the participant sleeps per night. <br>
+Sleep Quality: Numerical variable representing the participant's perceived quality of sleep (e.g., poor, fair, good). <br>
+Physical Activity Level: Categorical variable indicating the participant's level of physical activity (e.g., sedentary, moderate, active). <br>
+Stress Levels: Numerical variable indicating the participant's stress level (e.g., low, medium, high). <br>
+BMI Category: Categorical variable indicating the Body Mass Index category (e.g., underweight, normal weight, overweight, obese). <br>
+Blood Pressure: Numerical variable representing the participant's blood pressure. <br>
+Heart Rate: Numerical variable indicating the participant's resting heart rate. <br>
+Daily Steps: Numerical variable showing the average number of steps the participant takes per day. <br>
+Sleep Disorders: Categorical variable indicating whether the participant has any diagnosed sleep disorders (e.g., none, insomnia, sleep apnea). <br>
+
+
+# **Data Preprocessing**
+##### **Changing Values : **
+```{r}
+library(tidyverse)
+
+dataframe <- read.csv("SleepDataset.csv")
+
+dataframe <- dataframe %>%
+  mutate(BMI.Category = ifelse(BMI.Category == "Normal Weight", "Normal", BMI.Category))
+```
+
+This code is used to change the "Normal Weight" into "Normal" in BMI Category's column.
+
+##### **Missing Value : **
+```{r}
+library(dplyr)
+
+dataframe %>%
+  summarise(across(everything(), ~ sum(is.na(.))))
+```
+Each column has a count of 0 for missing values, indicating that there are no missing entries in the dataset for any of the variables. <br>
+
+##### **Outliers : **
+```{r}
+source("explorationFunction.R")
+
+outlier <- FindOutliers(dataframe$Heart.Rate)
+outlier$summary
+```
+This function using ThreeSigma, Hampel, and BoxplotRule method to find outlier. We can see that there are 9 outliers if we using *ThreeSigma* method, 15 outlier if it's *Hampel*, and 82 for *BoxplotRule*. <br>
+
+We assume that the outlier is on Sleep Duration variable. Here's why :
+```{r}
+library(ggplot2)
+
+ggplot(dataframe, aes(x = Gender, y = Sleep.Duration, fill = Gender)) +
+  geom_boxplot() +
+  facet_wrap(~ Occupation) +
+  ggtitle("Boxplots of Sleep Duration by Gender and Occupation") +
+  xlab("Gender") +
+  ylab("Sleep Duration (hours)") +
+  theme_minimal()
+```
+
+From this grouped boxplot, we can conclude that, outliers are visible in several occupations.
+For example, Teacher and Engineer occupations. <br>
+
+##### **Handling the outlier** <br>
+```{r}
+# Define the lower and upper bounds
+Q1 <- quantile(dataframe$Sleep.Duration, 0.25)
+Q3 <- quantile(dataframe$Sleep.Duration, 0.75)
+IQR <- Q3 - Q1
+lower_bound <- Q1 - 1.5 * IQR
+upper_bound <- Q3 + 1.5 * IQR
+
+# Replace outliers with median
+median_sleep_duration <- median(dataframe$Sleep.Duration, na.rm = TRUE)
+dataframe$Imputed_Sleep_Duration <- ifelse(dataframe$Sleep.Duration > upper_bound | dataframe$Sleep.Duration < lower_bound, median_sleep_duration, dataframe$Sleep.Duration)
+
+dataframe <- dataframe[, !(names(dataframe) %in% c("Sleep.Duration"))]
+```
+
+This code handles outliers in the Sleep.Duration column by: <br>
+1) Calculating the interquartile range (IQR) and defining acceptable bounds. <br>
+2) Replacing outliers with the median value of the Sleep.Duration column. <br>
+3) Removing the original Sleep.Duration column after creating a new column (Imputed_Sleep_Duration) with the outliers handled. <br>
+
+# **Data Exploration**
+##### **Summary Statistic : **
+```{r}
+summary(dataframe)
+```
+
+##### **Exploratory Data Visualizations : **
+
+```{r}
+ggplot(dataframe, aes(x = Gender, y = Imputed_Sleep_Duration)) +
+  geom_boxplot(fill = "skyblue") +
+  theme_minimal() +
+  labs(title = "Sleep Duration by Gender",
+       x = "Gender",
+       y = "Sleep Duration (hours)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+summary_stats <- dataframe %>%
+  group_by(Gender) %>%
+  summarize(
+    Q1 = quantile(Imputed_Sleep_Duration, 0.25, na.rm = TRUE),
+    Q2_Median = median(Imputed_Sleep_Duration, na.rm = TRUE),
+    Q3 = quantile(Imputed_Sleep_Duration, 0.75, na.rm = TRUE),
+    Mean = mean(Imputed_Sleep_Duration, na.rm = TRUE),
+    Mode = {
+      # Calculate mode
+      sleep_duration_values <- Imputed_Sleep_Duration[!is.na(Imputed_Sleep_Duration)]
+      unique_values <- unique(sleep_duration_values)
+      unique_values[which.max(tabulate(match(sleep_duration_values, unique_values)))]
+    }
+  )
+
+print(summary_stats)
+```
+
+```{r}
+ggplot(dataframe, aes(x = Occupation, fill = Gender)) +
+  geom_bar(position = "stack") +
+  labs(title = "Distribution of Gender within Occupations",
+       x = "Occupation",
+       y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+##### **Interactive Design**
+```{r}
+library(plotly)
+
+p <- ggplot(dataframe, aes(x = Sleep.Disorder, y = Quality.of.Sleep, fill = Sleep.Disorder)) +
+  geom_boxplot() + # Menambahkan box plot
+  labs(title = "Distribution of Quality of Sleep by Sleep Disorder",
+       x = "Sleep Disorder",
+       y = "Quality of Sleep (Hours)") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+```{r}
+plot_ly(
+  data = dataframe,
+  x = ~Imputed_Sleep_Duration,
+  y = ~Physical.Activity.Level,
+  type = "scatter",
+  mode = "markers"
+) %>%
+  layout(
+    title = "Relation between Sleep Duration and Physical Activity",
+    xaxis = list(title = "Sleep Duration"),
+    yaxis = list(title = "Physical Activity Level")
+  )
+```
+
+
+##### **Relation within the Variables**
+
+###### **Occupation versus Sleep Duration**
+```{r}
+summary_data <- dataframe %>%
+  group_by(Occupation, Stress.Level) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+ggplot(summary_data, aes(x = Occupation, y = count, fill = factor(Stress.Level))) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Relation between Occupation and Stress Level") +
+  xlab("Occupation") +
+  ylab("Frequency / Count") +
+  scale_fill_brewer(palette = "Blues", name = "Stress Level")
+```
+
+###### **Gender versus Sleep Duration**
+```{r}
+ggplot(dataframe, aes(x = Imputed_Sleep_Duration, fill = Gender)) +
+  geom_histogram(alpha = 0.6, position = 'identity', bins = 30) +
+  labs(title = "Histogram of Sleep Duration by Gender", x = "Sleep Duration (hours)", y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 12, face = "bold"),
+        axis.text.y = element_text(size = 12, face = "bold"),
+        plot.title = element_text(size = 16, face = "bold"))
+```
+
+###### **Gender Distribution Across Sleep Disorders**
+```{r}
+library(tidyr)
+
+sleep_disorder_gender <- dataframe %>%
+  group_by(Gender, Sleep.Disorder) %>%
+  summarise(Count = n()) %>%
+  spread(key = Sleep.Disorder, value = Count, fill = 0)
+
+sleep_disorder_gender_long <- sleep_disorder_gender %>%
+  gather(key = "Sleep_Disorder", value = "Count", -Gender)
+
+sleep_disorder_order <- c('None', 'Sleep Apnea', 'Insomnia')
+
+sleep_disorder_gender_long$Sleep_Disorder <- factor(sleep_disorder_gender_long$Sleep_Disorder, levels = sleep_disorder_order)
+
+colors <- c('#e0e0e0', '#faf3b7', '#a8e6cf')
+
+ggplot(sleep_disorder_gender_long, aes(x = Gender, y = Count, fill = Sleep_Disorder)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_fill_manual(values = colors) +
+  labs(title = "Gender Distribution Across Sleep Disorders",
+       x = "Gender",
+       y = "Count",
+       fill = "Sleep Disorder") +
+  theme_minimal(base_size = 15) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, size = 12))
+```
+
+###### **Average Quality of Sleep along Occupations**
+```{r}
+library(scales)
+
+avg_quality_sleep_by_occupation <- dataframe %>%
+  group_by(Occupation) %>%
+  summarise(Average_Quality_of_Sleep = mean(Quality.of.Sleep, na.rm = TRUE)) %>%
+  arrange(desc(Average_Quality_of_Sleep))
+
+get_gradient_colors <- function(values) {
+  cmap <- colorRampPalette(c('#e0e0e0', '#add8e6'))(length(values))
+  return(cmap[rank(values)])
+}
+
+avg_quality_sleep_by_occupation <- avg_quality_sleep_by_occupation %>%
+  mutate(Gradient_Color = get_gradient_colors(Average_Quality_of_Sleep))
+
+ggplot(avg_quality_sleep_by_occupation, aes(x = reorder(Occupation, Average_Quality_of_Sleep), y = Average_Quality_of_Sleep, fill = Gradient_Color)) +
+  geom_bar(stat = "identity") +
+  scale_fill_identity() +
+  coord_flip() +  # Flip coordinates for better readability
+  labs(title = "Average Quality of Sleep Across Different Occupations", x = NULL, y = NULL) +
+  theme_minimal(base_size = 15) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+# **Discusion**
+
+##### **About the Summary Statistics**
+From the summary above we may conclude that; <br>
+- The 'Age' variable has a minimum age of 27, a maximum age of 59, and a mean age of approximately 42.18 years. <br>
+- 'Sleep.Duration' ranges from 5.8 to 8.5 hours, with a mean of approximately 7.132 hours. <br>
+- 'Quality.of.Sleep' has a range of 4 to 9, with a mean of approximately 7.313 <br>
+- 'Physical.Activity.Level' ranges from 30 to 90, with a mean of approximately 59.17. <br>
+- 'Age' has a a range from 27 to 59 with a mean of approximately 42 years. <br>
+- 'Heart.Rate' has a range from 65 to 86 with a mean of approximately 70 beats per minute. <br>
+- 'Stress.Level' has a range from 3 to 8 with a mean approximately 5,385, the level is from low to high. <br>
+- 'Daily.Steps' has a range 3000 to 9000 with a mean approximately 6817 steps a day.<br>
+
+
+##### **About the explaratory data visualizations**
+
+The box plot visualizing sleep duration (in hours) categorized by gender provides several insights: <br>
+- Both males and females have the same median sleep duration of 7.2 hours. This indicates that the middle value of sleep duration, when all durations are ordered from lowest to highest, is identical for both genders. <br>
+- Females have a slightly higher mean sleep duration of 7.23 hours compared to males, who have a mean of 7.04 hours. This suggests that, on average, females tend to sleep a bit longer than males. <br>
+- The IQR for females is from 6.5 to 8.1 hours, whereas for males, it ranges from 6.3 to 7.7 hours. The wider IQR for females indicates that there is more variability in the sleep duration among females compared to males. This means that while the median sleep duration is the same, females experience a broader range of sleep durations than males. <br>
+
+The grouped bar chart shows the distribution of gender (Female and Male) across various occupations, highlighting patterns of gender dominance in different professions: <br>
+- Accountants and Managers : These occupations are mostly female-dominated, suggesting that fields like accounting and management have a higher representation of females. <br>
+- Doctors, Engineers, and Salespersons : These professions are predominantly male, indicating that men are more represented in these fields. <br>
+- Lawyers and Teacher : he gender distribution is more balanced, with females slightly more prevalent. <br>
+- Nurses : This profession is mostly female-dominated. <br>
+- Sales Representatives, Scientists, and Software Engineers : These fields are mostly male-dominated, indicating a higher interest or encouragement for males in these technical and sales-related professions. <br>
+
+##### **About the Relations between variables**
+Fristly, The scale on the rightmost represents the stress level, with level 8 being the highest and level 3 being the lowest. We observe that doctors, nurses, and sales representatives have a high number of individuals experiencing high levels of stress. Specifically, doctors show a significant number, around 70 people, with many at stress levels 7 and 8. In contrast, managers, scientists, and software engineers have very few individuals with high stress, most being at lower stress levels.
+
+Moving on to sleep duration, the histogram allows us to see notable differences between males and females. For instance, if one gender tends to sleep longer or shorter than the other, it will be visible in the height and position of the bars. Males tend to have higher counts at sleep durations around 6.0 and 7.5 hours, suggesting these are common sleep durations among them. Females, on the other hand, tend to have higher counts at 6.5 and 8.0 to 8.5 hours, indicating these durations are more common among females.
+
+The bar plot on sleep disorders provides an immediate understanding of the distribution of different sleep disorders (None, Sleep Apnea, and Insomnia) across genders. The X-axis represents the two genders (Female and Male), and the Y-axis represents the count of individuals in each category of sleep disorder. This stacked bar chart allows us to compare sleep disorder distribution within each gender and across genders. It shows that while both genders have many individuals without sleep disorders, females are more affected by insomnia, and both genders have a relatively low prevalence of sleep apnea.
+
+Lastly, the bar chart shows the average quality of sleep across different occupations. Each bar represents an occupation, and the length of the bar indicates the average sleep quality score for that profession, with scores ranging from 0 to 10. Engineers have the highest average sleep quality, scoring close to 8. Lawyers and accountants also have relatively high sleep quality, slightly below engineers but still significantly above other occupations. Nurses, managers, and teachers fall in the middle range, with average sleep quality scores around 5 to 6. Doctors, software engineers, and salespersons have lower sleep quality, with scores closer to 4. Scientists and sales representatives have the lowest average sleep quality, with scores just above 3.
+
+##### **About the interactive design**
+The boxplot looks at normal, obese and overweight BMI categories for age from minimum, median to maximum. It can be seen from the boxplot that most people are overweight in old age. <br>
+The scatter plot of the relationship between activities carried out every day in units (minutes/day) and sleep duration (hours) can be seen from the scatter. The higher the activity carried out every day, the longer the sleep duration. <br>
+
+
+# **Conclusion**
+##### **Summary**
+- The dataset comprises 374 observations across 13 variables, including gender, age, occupation, sleep duration, sleep quality, physical activity level, stress levels, BMI category, blood pressure, heart rate, daily steps, and sleep disorders. <br>
+- No missing values were found in the dataset. <br>
+- Outliers in the sleep duration variable were identified and handled using the median imputation method. <br>
+- Visualizations showed differences in sleep duration and quality by gender and occupation, highlighting patterns such as females having a higher average sleep duration than males and certain occupations being more prone to stress or sleep disorders. <br>
+- Relationships between variables indicated that certain professions experience higher stress levels and poorer sleep quality, with gender differences in sleep duration and disorder prevalence. <br>
+
+##### **Our Suggestions**
+Implement and evaluate interventions aimed at improving sleep health in high-stress occupations and among individuals with identified sleep disorders. Given the crucial role of sleep in overall health and productivity, targeted strategies for these groups are essential. High-stress occupations often experience significant sleep disturbances due to work demands, and individuals with sleep disorders face ongoing challenges in achieving restorative sleep. Psychological factors such as anxiety and depression, which are closely linked to sleep health, must also be addressed. Exploring these psychological factors and developing comprehensive approaches can improve mental and sleep health. Additionally, examining the effectiveness of technological interventions, such as sleep tracking devices and mobile apps, offers innovative solutions for monitoring and enhancing sleep patterns. By integrating these technologies, individuals can gain insights into their sleep and receive personalized recommendations. Designing and implementing intervention programs that combine technological and psychological approaches can provide real-time feedback and therapy modules to manage stress and anxiety, leading to improved sleep health and overall well-being. <br>
+
+##### **References**
+- https://www.kaggle.com/code/artischitchamnueng/sleep-and-lifestyle <br>
+- https://www.kaggle.com/code/samuelpark91/sleep-health-and-life-style <br>
+- https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3630968/ <br>
+
+
